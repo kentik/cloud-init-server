@@ -8,12 +8,26 @@ import (
 	"path"
 	"strings"
 
+	"github.com/mostlygeek/arp"
+
 	yaml "gopkg.in/yaml.v2"
 )
 
+type MacNotFoundError struct {
+	Msg string
+}
+
+func (e *MacNotFoundError) Error() string {
+	return fmt.Sprintf(e.Msg)
+}
+
 func getConfig(r *http.Request) (map[string]interface{}, error) {
 	remoteaddr := strings.Split(r.RemoteAddr, ":")[0]
-	fullpath := path.Join("/etc/cloud-init/", remoteaddr)
+	mac := arp.Search(remoteaddr)
+	if mac == "" {
+		return nil, &MacNotFoundError{Msg: fmt.Sprintf("Could not find mac for ip %s", remoteaddr)}
+	}
+	fullpath := path.Join("/etc/cloud-init/", mac)
 	data, err := ioutil.ReadFile(fullpath)
 	if err != nil {
 		return nil, err
