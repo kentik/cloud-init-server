@@ -7,12 +7,23 @@ import (
 	"net/http"
 	"path"
 	"strings"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
-func getConfig(r *http.Request, filename string) ([]byte, error) {
+func getConfig(r *http.Request) (map[string]interface{}, error) {
 	remoteaddr := strings.Split(r.RemoteAddr, ":")[0]
-	fullpath := path.Join(remoteaddr, filename)
-	return ioutil.ReadFile(fullpath)
+	fullpath := path.Join("/etc/cloud-init/", remoteaddr)
+	data, err := ioutil.ReadFile(fullpath)
+	if err != nil {
+		return nil, err
+	}
+	var config map[string]interface{}
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
 }
 
 func metadata(w http.ResponseWriter, r *http.Request) {
@@ -27,19 +38,13 @@ func metadata(w http.ResponseWriter, r *http.Request) {
 		return
 
 	}
-	config, err := getConfig(r, "meta-data")
+	config, err := getConfig(r)
 	if err != nil {
 		fmt.Println("Failed to get metadata", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	var metadata map[string]string
-	err = json.Unmarshal(config, &metadata)
-	if err != nil {
-		fmt.Println("Failed to unmarshal metadata", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	metadata := config["meta-data"].(map[string]interface{})
 	w.WriteHeader(http.StatusOK)
 	if filename == "" {
 		fmt.Fprintln(w, "instance-id")
@@ -47,21 +52,27 @@ func metadata(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, key)
 		}
 	} else {
-		fmt.Fprintf(w, metadata[filename])
+		fmt.Fprintf(w, metadata[filename].(string))
 	}
 
 }
 
 func userData(w http.ResponseWriter, r *http.Request) {
-	config, err := getConfig(r, "user-data")
+	config, err := getConfig(r)
 	if err != nil {
 		fmt.Println("Failed to get user-data metadata", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	userdata := config["user-data"]
+	userdatabytes, err := yaml.Marshal(userdata)
+	if err != nil {
+		fmt.Println("Failed to get user-data metadata", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 	w.Header().Set("Content-Type", "text/cloud-config")
 	w.WriteHeader(http.StatusOK)
-	w.Write(config)
+	w.Write(userdatabytes)
 }
 
 func main() {
