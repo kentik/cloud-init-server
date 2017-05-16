@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 
@@ -13,6 +15,9 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+var configpath string
+
+// MacNotFoundError error thrown when mac is not found in arp table
 type MacNotFoundError struct {
 	Msg string
 }
@@ -27,7 +32,7 @@ func getConfig(r *http.Request) (map[string]interface{}, error) {
 	if mac == "" {
 		return nil, &MacNotFoundError{Msg: fmt.Sprintf("Could not find mac for ip %s", remoteaddr)}
 	}
-	fullpath := path.Join("/etc/cloud-init/", mac)
+	fullpath := path.Join(configpath, mac)
 	data, err := ioutil.ReadFile(fullpath)
 	if err != nil {
 		return nil, err
@@ -90,7 +95,15 @@ func userData(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	var bind string
+	flag.StringVar(&bind, "bind", ":80", "Address to bind on defaults to :80")
+	flag.StringVar(&configpath, "config", "/etc/cloud-init", "Path to put cloud-init config files in")
+	flag.Parse()
+	if _, err := os.Stat(configpath); os.IsNotExist(err) {
+		fmt.Printf("Config path %s does not exists\n", configpath)
+		os.Exit(1)
+	}
 	http.HandleFunc("/latest/meta-data/", metadata)
 	http.HandleFunc("/latest/user-data", userData)
-	http.ListenAndServe(":80", nil)
+	http.ListenAndServe(bind, nil)
 }
