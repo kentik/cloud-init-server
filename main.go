@@ -27,7 +27,10 @@ func (e *MacNotFoundError) Error() string {
 }
 
 func getConfig(r *http.Request) (map[string]interface{}, error) {
-	remoteaddr := strings.Split(r.RemoteAddr, ":")[0]
+	remoteaddr := r.Header.Get("X-Forwarded-For")
+	if remoteaddr == "" {
+		remoteaddr = strings.Split(r.RemoteAddr, ":")[0]
+	}
 	mac := arp.Search(remoteaddr)
 	if mac == "" {
 		return nil, &MacNotFoundError{Msg: fmt.Sprintf("Could not find mac for ip %s", remoteaddr)}
