@@ -50,7 +50,7 @@ func getConfig(r *http.Request) (map[string]interface{}, error) {
 
 func metadata(w http.ResponseWriter, r *http.Request) {
 	dirname, filename := path.Split(r.URL.Path)
-	if dirname != "/latest/meta-data/" {
+	if dirname != "/latest/meta-data/" && dirname != "/2009-04-04/meta-data/" {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -92,9 +92,10 @@ func userData(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Failed to get user-data metadata", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-	w.Header().Set("Content-Type", "text/cloud-config")
+	data := "#cloud-config\n" + string(userdatabytes)
+	w.Header().Set("Content-Type", "text/yaml")
 	w.WriteHeader(http.StatusOK)
-	w.Write(userdatabytes)
+	w.Write([]byte(data))
 }
 
 func main() {
@@ -106,7 +107,9 @@ func main() {
 		fmt.Printf("Config path %s does not exists\n", configpath)
 		os.Exit(1)
 	}
+	http.HandleFunc("/2009-04-04/meta-data/", metadata)
 	http.HandleFunc("/latest/meta-data/", metadata)
+	http.HandleFunc("/2009-04-04/user-data", userData)
 	http.HandleFunc("/latest/user-data", userData)
 	http.ListenAndServe(bind, nil)
 }
