@@ -86,7 +86,8 @@ func userData(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	userdata := config["user-data"]
+	userdata := config["user-data"].(map[string]interface{})
+	userdata["datasource"] = map[string]map[string]bool{"Ec2": {"strict_id": false}}
 	userdatabytes, err := yaml.Marshal(userdata)
 	if err != nil {
 		fmt.Println("Failed to get user-data metadata", err)
