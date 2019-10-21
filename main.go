@@ -33,7 +33,7 @@ func getConfig(r *http.Request) (map[string]interface{}, error) {
 	}
 	mac := arp.Search(remoteaddr)
 	if mac == "" {
-		return nil, &MacNotFoundError{Msg: fmt.Sprintf("Could not find mac for ip %s", remoteaddr)}
+		mac = "default"
 	}
 	fullpath := path.Join(configpath, mac)
 	data, err := ioutil.ReadFile(fullpath)
