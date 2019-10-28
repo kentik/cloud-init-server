@@ -9,9 +9,6 @@ import (
 	"os"
 	"path"
 	"strings"
-
-	"github.com/mostlygeek/arp"
-
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -26,20 +23,38 @@ func (e *MacNotFoundError) Error() string {
 	return fmt.Sprintf(e.Msg)
 }
 
+func fileExists(filename string) bool {
+    info, err := os.Stat(filename)
+    if os.IsNotExist(err) {
+        return false
+    }
+    return !info.IsDir()
+}
+
 func getConfig(r *http.Request) (map[string]interface{}, error) {
+	var data []byte
+	var err error
+
 	remoteaddr := r.Header.Get("X-Forwarded-For")
 	if remoteaddr == "" {
 		remoteaddr = strings.Split(r.RemoteAddr, ":")[0]
 	}
-	mac := arp.Search(remoteaddr)
-	if mac == "" {
-		mac = "default"
+
+	addressconfig := path.Join(configpath, remoteaddr)
+	defaultconfig := path.Join(configpath, "default")
+
+	if fileExists(addressconfig) {
+		data, err = ioutil.ReadFile(addressconfig)
+		if err != nil {
+			return nil, err
+		}
+	} else { //fallback to default
+		data, err = ioutil.ReadFile(defaultconfig)
+		if err != nil {
+			return nil, err
+		}
 	}
-	fullpath := path.Join(configpath, mac)
-	data, err := ioutil.ReadFile(fullpath)
-	if err != nil {
-		return nil, err
-	}
+
 	var config map[string]interface{}
 	err = json.Unmarshal(data, &config)
 	if err != nil {
