@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"log"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -10,6 +10,7 @@ import (
 	"path"
 	"strings"
 	yaml "gopkg.in/yaml.v2"
+	"github.com/gorilla/handlers"
 )
 
 var configpath string
@@ -31,7 +32,7 @@ func fileExists(filename string) bool {
     return !info.IsDir()
 }
 
-func getConfig(r *http.Request) (map[string]interface{}, error) {
+func getConfig(r *http.Request) (map[interface{}]interface{}, error) {
 	var data []byte
 	var err error
 
@@ -55,10 +56,10 @@ func getConfig(r *http.Request) (map[string]interface{}, error) {
 		}
 	}
 
-	var config map[string]interface{}
-	err = json.Unmarshal(data, &config)
+	var config map[interface{}]interface{}
+	err = yaml.Unmarshal(data, &config)
 	if err != nil {
-		return nil, err
+			return nil, err
 	}
 	return config, nil
 }
@@ -81,7 +82,7 @@ func metadata(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	metadata := config["meta-data"].(map[string]interface{})
+	metadata := config["meta-data"].(map[interface{}]interface{})
 	w.WriteHeader(http.StatusOK)
 	if filename == "" {
 		fmt.Fprintln(w, "instance-id")
@@ -101,8 +102,8 @@ func userData(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	userdata := config["user-data"].(map[string]interface{})
-	userdata["datasource"] = map[string]map[string]bool{"Ec2": {"strict_id": false}}
+	userdata := config["user-data"].(map[interface{}]interface{})
+	userdata["datasource"] = map[interface{}]map[string]bool{"Ec2": {"strict_id": false}}
 	userdatabytes, err := yaml.Marshal(userdata)
 	if err != nil {
 		fmt.Println("Failed to get user-data metadata", err)
@@ -123,9 +124,10 @@ func main() {
 		fmt.Printf("Config path %s does not exists\n", configpath)
 		os.Exit(1)
 	}
-	http.HandleFunc("/2009-04-04/meta-data/", metadata)
-	http.HandleFunc("/latest/meta-data/", metadata)
-	http.HandleFunc("/2009-04-04/user-data", userData)
-	http.HandleFunc("/latest/user-data", userData)
-	http.ListenAndServe(bind, nil)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/2009-04-04/meta-data/", metadata)
+	mux.HandleFunc("/latest/meta-data/", metadata)
+	mux.HandleFunc("/2009-04-04/user-data", userData)
+	mux.HandleFunc("/latest/user-data", userData)
+	log.Fatal(http.ListenAndServe(bind, handlers.LoggingHandler(os.Stdout, mux)))
 }
