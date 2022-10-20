@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -10,7 +9,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	"crypto/rand"
 	yaml "gopkg.in/yaml.v2"
 	"github.com/gorilla/handlers"
 )
@@ -74,12 +72,7 @@ func metadata(w http.ResponseWriter, r *http.Request) {
 	}
 	if filename == "instance-id" {
 		w.WriteHeader(http.StatusOK)
-		iid := make([]byte, 32)
-		_, err := rand.Read(iid)
-		if err != nil {
-			panic("Could not generate random instance id")
-		}
-		fmt.Fprintf(w, "iid-datasource-" + hex.EncodeToString(iid)[:32] + "\n")
+		fmt.Fprintf(w, "iid-datasource-cloudstack")
 		return
 
 	}
