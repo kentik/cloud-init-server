@@ -1,16 +1,15 @@
 package main
 
 import (
-	"log"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"github.com/gorilla/handlers"
+	"log"
 	"net/http"
 	"os"
 	"path"
+	yaml "sigs.k8s.io/yaml"
 	"strings"
-	yaml "gopkg.in/yaml.v2"
-	"github.com/gorilla/handlers"
 )
 
 var configpath string
@@ -25,14 +24,14 @@ func (e *MacNotFoundError) Error() string {
 }
 
 func fileExists(filename string) bool {
-    info, err := os.Stat(filename)
-    if os.IsNotExist(err) {
-        return false
-    }
-    return !info.IsDir()
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
 }
 
-func getConfig(r *http.Request) (map[interface{}]interface{}, error) {
+func getConfig(r *http.Request) (map[string]interface{}, error) {
 	var data []byte
 	var err error
 
@@ -45,21 +44,20 @@ func getConfig(r *http.Request) (map[interface{}]interface{}, error) {
 	defaultconfig := path.Join(configpath, "default")
 
 	if fileExists(addressconfig) {
-		data, err = ioutil.ReadFile(addressconfig)
+		data, err = os.ReadFile(addressconfig)
 		if err != nil {
 			return nil, err
 		}
 	} else { //fallback to default
-		data, err = ioutil.ReadFile(defaultconfig)
+		data, err = os.ReadFile(defaultconfig)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	var config map[interface{}]interface{}
+	var config map[string]interface{}
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
-			return nil, err
+		return nil, err
 	}
 	return config, nil
 }
@@ -82,7 +80,7 @@ func metadata(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	metadata := config["meta-data"].(map[interface{}]interface{})
+	metadata := config["meta-data"].(map[string]interface{})
 	w.WriteHeader(http.StatusOK)
 	if filename == "" {
 		fmt.Fprintln(w, "instance-id")
@@ -102,15 +100,19 @@ func userData(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	userdata := config["user-data"].(map[interface{}]interface{})
-	userdata["datasource"] = map[interface{}]map[string]bool{"Ec2": {"strict_id": false}}
-	userdatabytes, err := yaml.Marshal(userdata)
+	userdata := config["user-data"].(map[string]interface{})
 	if err != nil {
-		fmt.Println("Failed to get user-data metadata", err)
+		fmt.Println("Failed to extract user-data", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-	data := "#cloud-config\n" + string(userdatabytes)
-	w.Header().Set("Content-Type", "text/yaml")
+	userdatabytes, err := yaml.Marshal(userdata)
+	if err != nil {
+		fmt.Println("Failed to marshall userdata YAML into bytes[]", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	jsonbytes, err := yaml.YAMLToJSON(userdatabytes)
+	data := "#cloud-config\n" + string(jsonbytes)
+	w.Header().Set("Content-Type", "text/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(data))
 }
