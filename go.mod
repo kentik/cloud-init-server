@@ -1,4 +1,4 @@
-module example.com/hello
+module github.com/kentik/cloud-init-server
 
 go 1.19
 
